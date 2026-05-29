@@ -177,6 +177,27 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
     </button>
   </header>
   <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v9</div>
+  <script>
+    // Banner modo demo (?demo=1)
+    if(new URLSearchParams(location.search).get('demo')==='1'){
+      document.addEventListener('DOMContentLoaded', ()=>{
+        const b = document.createElement('div');
+        b.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#D4A24C;color:#1A2E31;padding:7px 14px;text-align:center;font-size:12px;font-weight:800;z-index:9999;letter-spacing:.4px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+        b.innerHTML = '🎬 MODO DEMONSTRAÇÃO — campos liberados, dados não persistem em produção';
+        document.body.insertAdjacentElement('afterbegin', b);
+        document.body.style.paddingTop = '32px';
+        // Pré-preenche valores de placeholder pra rapidez
+        const set = (id,v) => { const el=document.getElementById(id); if(el && !el.value) el.value=v; };
+        setTimeout(()=>{
+          set('li-porteiro','Visitante Demo');
+          set('li-cpf','123.456.789-00');
+          set('li-email','demo@diagnostika-pmp.app');
+          set('li-pin','DEMO');
+          if(typeof validar==='function') validar();
+        }, 200);
+      });
+    }
+  </script>
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
@@ -284,6 +305,12 @@ function selCondo(id){
   validar();
 }
 function validar(){
+  const isDemo = new URLSearchParams(location.search).get('demo') === '1';
+  if(isDemo){
+    // Demo libera o botão só com condo selecionado
+    document.getElementById('btn-entrar').disabled = !_condoSel;
+    return;
+  }
   const nome = document.getElementById('li-porteiro').value.trim();
   const cpf  = document.getElementById('li-cpf').value.replace(/\D/g,'');
   const em   = document.getElementById('li-email').value.trim();
@@ -312,19 +339,24 @@ document.addEventListener('input', e => {
 });
 document.getElementById('btn-entrar').addEventListener('click', entrar);
 
+// Modo demo: ?demo=1 desabilita todas as validações (somente apresentações)
+const _demoMode = new URLSearchParams(location.search).get('demo') === '1';
+
 async function entrar(){
-  const nome  = document.getElementById('li-porteiro').value.trim();
-  const cpf   = document.getElementById('li-cpf').value.replace(/\D/g,'');
-  const email = document.getElementById('li-email').value.trim();
+  const nome  = document.getElementById('li-porteiro').value.trim() || (_demoMode ? 'Visitante Demo' : '');
+  const cpf   = document.getElementById('li-cpf').value.replace(/\D/g,'') || (_demoMode ? '00000000000' : '');
+  const email = document.getElementById('li-email').value.trim() || (_demoMode ? 'demo@diagnostika-pmp.app' : '');
   const pin   = document.getElementById('li-pin').value.trim();
   const err   = document.getElementById('li-err');
   err.classList.remove('show');
   const condo = CONDOMINIOS[_condoSel];
   if(!condo){ err.textContent='Selecione o condomínio.'; err.classList.add('show'); return; }
-  if(nome.length < 5){ err.textContent='Informe seu nome completo.'; err.classList.add('show'); return; }
-  if(cpf.length !== 11){ err.textContent='CPF inválido (11 dígitos).'; err.classList.add('show'); return; }
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ err.textContent='E-mail inválido.'; err.classList.add('show'); return; }
-  if(pin !== condo.pin){ err.textContent='PIN incorreto. Solicite o PIN ao síndico(a).'; err.classList.add('show'); return; }
+  if(!_demoMode){
+    if(nome.length < 5){ err.textContent='Informe seu nome completo.'; err.classList.add('show'); return; }
+    if(cpf.length !== 11){ err.textContent='CPF inválido (11 dígitos).'; err.classList.add('show'); return; }
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ err.textContent='E-mail inválido.'; err.classList.add('show'); return; }
+    if(pin !== condo.pin){ err.textContent='PIN incorreto. Solicite o PIN ao síndico(a).'; err.classList.add('show'); return; }
+  }
   _porteiro = nome;
   _porteiroCPF = cpf;
   _porteiroEmail = email;
