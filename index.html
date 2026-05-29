@@ -170,6 +170,7 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
+    <div id="status-bar" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 13px;margin-bottom:12px;font-size:11.5px;color:var(--text2);display:flex;gap:14px;flex-wrap:wrap;align-items:center"></div>
     <div class="search-bar"><input type="text" id="search" placeholder="Buscar (ex: 502, B-502...)"></div>
     <div class="unit-grid" id="unit-grid"></div>
 
@@ -401,6 +402,21 @@ function renderGrid(){
   const q = (document.getElementById('search')?.value||'').toLowerCase().trim();
   const grid = document.getElementById('unit-grid');
   const cells = [];
+
+  // Status bar
+  const sb_el = document.getElementById('status-bar');
+  if(sb_el){
+    const nClan = _clandestinasPort.length;
+    const nRef  = _reformas.length;
+    sb_el.innerHTML = `
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${nClan?'#DC2626':'#5A7A7E'};margin-right:5px;${nClan?'animation:pulse 1.4s infinite':''}"></span><b style="color:${nClan?'#FCA5A5':'var(--text)'}">${nClan} obra(s) clandestina(s) ativa(s)</b></span>
+      <span style="opacity:.7">·</span>
+      <span>📋 ${nRef} reforma(s) cadastrada(s)</span>
+      <span style="opacity:.7">·</span>
+      <span style="opacity:.7">Atualiza em tempo real</span>
+    `;
+  }
+
   // gerar TODAS as unidades — mas se busca, filtrar
   e.torres.forEach(t => {
     for(let i=1; i<=e.aptosPorTorre; i++){
