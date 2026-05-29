@@ -142,8 +142,14 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       <span id="cond-locked-nome">—</span>
     </div>
 
-    <label>Seu nome</label>
-    <input type="text" id="li-porteiro" placeholder="Ex: José da Silva" autocomplete="name">
+    <label>Seu nome completo</label>
+    <input type="text" id="li-porteiro" placeholder="Ex: José da Silva Santos" autocomplete="name">
+
+    <label>CPF</label>
+    <input type="text" id="li-cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" oninput="mascCPFPort(this)">
+
+    <label>E-mail</label>
+    <input type="email" id="li-email" placeholder="seu@email.com" autocomplete="email">
 
     <label>PIN do condomínio (4 dígitos)</label>
     <input type="password" id="li-pin" placeholder="••••" inputmode="numeric" maxlength="4">
@@ -170,7 +176,7 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       Sair
     </button>
   </header>
-  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v7 · saída</div>
+  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v8 · CPF/email</div>
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
@@ -224,6 +230,16 @@ const CONDOMINIOS = {
 
 let _condoSel = null;
 let _porteiro = '';
+let _porteiroCPF = '';
+let _porteiroEmail = '';
+
+function mascCPFPort(el){
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if(v.length>9)      v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6,9)+'-'+v.slice(9);
+  else if(v.length>6) v = v.slice(0,3)+'.'+v.slice(3,6)+'.'+v.slice(6);
+  else if(v.length>3) v = v.slice(0,3)+'.'+v.slice(3);
+  el.value = v;
+}
 let _reformas = [];        // demandas com tipo reforma
 let _clandestinasPort = []; // portaria_eventos com tipo_evento='obra_clandestina' não revisadas
 let _entradasHoje = [];    // entradas registradas hoje (pra saída)
@@ -269,8 +285,11 @@ function selCondo(id){
 }
 function validar(){
   const nome = document.getElementById('li-porteiro').value.trim();
+  const cpf  = document.getElementById('li-cpf').value.replace(/\D/g,'');
+  const em   = document.getElementById('li-email').value.trim();
   const pin  = document.getElementById('li-pin').value.trim();
-  const ok = _condoSel && nome.length>=3 && pin.length===4;
+  const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
+  const ok = _condoSel && nome.length>=5 && cpf.length===11 && okEmail && pin.length===4;
   document.getElementById('btn-entrar').disabled = !ok;
 }
 
@@ -289,20 +308,27 @@ function sairPortaria(){
 
 let _realtimeSub = null;
 document.addEventListener('input', e => {
-  if(['li-porteiro','li-pin'].includes(e.target.id)) validar();
+  if(['li-porteiro','li-cpf','li-email','li-pin'].includes(e.target.id)) validar();
 });
 document.getElementById('btn-entrar').addEventListener('click', entrar);
 
 async function entrar(){
-  const nome = document.getElementById('li-porteiro').value.trim();
-  const pin  = document.getElementById('li-pin').value.trim();
-  const err  = document.getElementById('li-err');
+  const nome  = document.getElementById('li-porteiro').value.trim();
+  const cpf   = document.getElementById('li-cpf').value.replace(/\D/g,'');
+  const email = document.getElementById('li-email').value.trim();
+  const pin   = document.getElementById('li-pin').value.trim();
+  const err   = document.getElementById('li-err');
   err.classList.remove('show');
   const condo = CONDOMINIOS[_condoSel];
   if(!condo){ err.textContent='Selecione o condomínio.'; err.classList.add('show'); return; }
+  if(nome.length < 5){ err.textContent='Informe seu nome completo.'; err.classList.add('show'); return; }
+  if(cpf.length !== 11){ err.textContent='CPF inválido (11 dígitos).'; err.classList.add('show'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ err.textContent='E-mail inválido.'; err.classList.add('show'); return; }
   if(pin !== condo.pin){ err.textContent='PIN incorreto. Solicite o PIN ao síndico(a).'; err.classList.add('show'); return; }
   _porteiro = nome;
-  localStorage.setItem('portaria.sessao', JSON.stringify({condo:_condoSel, porteiro:nome, ts:Date.now()}));
+  _porteiroCPF = cpf;
+  _porteiroEmail = email;
+  localStorage.setItem('portaria.sessao', JSON.stringify({condo:_condoSel, porteiro:nome, cpf, email, ts:Date.now()}));
   document.getElementById('login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   await iniciarApp();
@@ -606,6 +632,8 @@ async function registrarSaida(idEntrada){
   const evento = {
     condo_id: _condoSel,
     porteiro: _porteiro,
+    porteiro_cpf: _porteiroCPF || null,
+    porteiro_email: _porteiroEmail || null,
     torre: ent.torre,
     apto: ent.apto,
     tipo_evento: 'saida_prestador',
@@ -644,6 +672,8 @@ async function registrarEntrada(){
   const eventos = validos.map(p => ({
     condo_id: _condoSel,
     porteiro: _porteiro,
+    porteiro_cpf: _porteiroCPF || null,
+    porteiro_email: _porteiroEmail || null,
     torre: _unidadeSel.torre,
     apto: _unidadeSel.num,
     tipo_evento: 'entrada_prestador',
@@ -681,6 +711,8 @@ async function marcarClandestinaUnidade(){
   const evento = {
     condo_id: _condoSel,
     porteiro: _porteiro,
+    porteiro_cpf: _porteiroCPF || null,
+    porteiro_email: _porteiroEmail || null,
     torre: _unidadeSel.torre,
     apto: _unidadeSel.num,
     tipo_evento: 'obra_clandestina',
@@ -788,6 +820,8 @@ function toast(msg, kind=''){
   if(s && (Date.now()-s.ts) < 1000*60*60*12 && CONDOMINIOS[s.condo]){
     _condoSel = s.condo;
     _porteiro = s.porteiro;
+    _porteiroCPF = s.cpf || '';
+    _porteiroEmail = s.email || '';
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').classList.add('show');
     iniciarApp();
