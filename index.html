@@ -170,7 +170,7 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       Sair
     </button>
   </header>
-  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v4 · multi-prestador</div>
+  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v5</div>
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
@@ -184,11 +184,11 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       <span><span class="dot d-art"></span>verde = c/ART (autorizada)</span> ·
       <span><span class="dot d-aguardando"></span>amarela = aguardando nossa ART</span> ·
       <span><span class="dot d-semrt"></span>vermelha = sem RT (declarada mas irregular)</span> ·
-      <span><span class="dot d-clandestina"></span>pisca = obra clandestina detectada pela portaria</span>
+      <span><span class="dot d-clandestina"></span>pisca = obra não autorizada detectada pela portaria</span>
     </div>
   </main>
 
-  <button class="fab" onclick="abrirClandestina()">⚠ Sinalizar obra clandestina</button>
+  <button class="fab" onclick="abrirClandestina()">⚠ Sinalizar obra não autorizada</button>
 </div>
 
 <!-- MODAL ENTRADA -->
@@ -421,7 +421,7 @@ function renderGrid(){
     const nClan = _clandestinasPort.length;
     const nRef  = _reformas.length;
     sb_el.innerHTML = `
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${nClan?'#DC2626':'#5A7A7E'};margin-right:5px;${nClan?'animation:pulse 1.4s infinite':''}"></span><b style="color:${nClan?'#FCA5A5':'var(--text)'}">${nClan} obra(s) clandestina(s) ativa(s)</b></span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${nClan?'#DC2626':'#5A7A7E'};margin-right:5px;${nClan?'animation:pulse 1.4s infinite':''}"></span><b style="color:${nClan?'#FCA5A5':'var(--text)'}">${nClan} obra(s) não autorizada(s) ativa(s)</b></span>
       <span style="opacity:.7">·</span>
       <span>📋 ${nRef} reforma(s) cadastrada(s)</span>
       <span style="opacity:.7">·</span>
@@ -466,9 +466,9 @@ function abrirUnidade(torre, num){
   } else if(st.cls==='st-semrt'){
     alertHtml = `<div class="alert danger"><b>⚠ Sem responsável técnico</b>A reforma está declarada mas SEM ART e SEM RT. NÃO libere sem autorização do síndico(a). Acione a Diagnóstika.</div>`;
   } else if(st.cls==='st-clandestina'){
-    alertHtml = `<div class="alert danger"><b>🚨 Obra clandestina</b>Esta unidade foi sinalizada como obra não declarada. Bloqueio até regularização.</div>`;
+    alertHtml = `<div class="alert danger"><b>🚨 Obra não autorizada</b>Esta unidade foi sinalizada como obra sem aprovação. Bloqueio até regularização.</div>`;
   } else {
-    alertHtml = `<div class="alert warn"><b>Sem reforma registrada</b>Não há reforma ativa para esta unidade no sistema. Se houver obra em andamento, sinalize como CLANDESTINA ao final.</div>`;
+    alertHtml = `<div class="alert warn"><b>Sem reforma registrada</b>Não há reforma ativa para esta unidade no sistema. Se houver obra em andamento, sinalize como NÃO AUTORIZADA ao final.</div>`;
   }
 
   document.getElementById('m-body').innerHTML = `
@@ -501,7 +501,7 @@ function abrirUnidade(torre, num){
     <input type="text" id="m-obs" placeholder="Ex: chegaram em Fiorino branca placa ABC-1234">
 
     <button class="btn-primary" id="btn-registrar" onclick="registrarEntrada()">📝 Registrar entrada (<span id="btn-count">1</span>) · ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</button>
-    ${(st.cls==='st-none')?'<button class="btn-danger" onclick="marcarClandestinaUnidade()">⚠ Marcar como obra clandestina</button>':''}
+    ${(st.cls==='st-none')?'<button class="btn-danger" onclick="marcarClandestinaUnidade()">⚠ Marcar como obra não autorizada</button>':''}
   `;
   // inicia com 1 prestador
   _prestList = [{nome:'',cpf:'',tel:''}];
@@ -598,7 +598,7 @@ async function registrarEntrada(){
 }
 
 async function marcarClandestinaUnidade(){
-  if(!confirm(`Marcar ${_unidadeSel.torre}·${_unidadeSel.num} como obra CLANDESTINA?\n\nIsso aciona alerta para a Diagnóstika e o síndico(a).`)) return;
+  if(!confirm(`Marcar ${_unidadeSel.torre}·${_unidadeSel.num} como obra NÃO AUTORIZADA?\n\nIsso aciona alerta para a Diagnóstika e o síndico(a).`)) return;
   const evento = {
     condo_id: _condoSel,
     porteiro: _porteiro,
@@ -617,7 +617,7 @@ async function marcarClandestinaUnidade(){
 }
 
 function abrirClandestina(){
-  const torre = prompt('Torre / Bloco da obra clandestina (ex: A, B, 01...):');
+  const torre = prompt('Torre / Bloco da obra não autorizada (ex: A, B, 01...):');
   if(!torre) return;
   const num = prompt('Número do apartamento:');
   if(!num) return;
