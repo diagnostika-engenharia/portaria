@@ -170,7 +170,7 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       Sair
     </button>
   </header>
-  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v6</div>
+  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v7 · saída</div>
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
@@ -226,6 +226,7 @@ let _condoSel = null;
 let _porteiro = '';
 let _reformas = [];        // demandas com tipo reforma
 let _clandestinasPort = []; // portaria_eventos com tipo_evento='obra_clandestina' não revisadas
+let _entradasHoje = [];    // entradas registradas hoje (pra saída)
 let _unidadeSel = null;
 let _condoLocked = false;  // se true, veio por URL ?c=
 
@@ -317,7 +318,7 @@ async function iniciarApp(){
   document.getElementById('hd-porteiro').textContent = _porteiro;
   tickClock();
   setInterval(tickClock, 1000*30);
-  await Promise.all([carregarReformas(), carregarClandestinas()]);
+  await Promise.all([carregarReformas(), carregarClandestinas(), carregarEntradasHoje()]);
   renderGrid();
   subscribeRealtimePortaria();
   document.getElementById('search').addEventListener('input', renderGrid);
@@ -360,6 +361,35 @@ async function carregarClandestinas(){
     if(error) throw error;
     _clandestinasPort = data || [];
   }catch(e){ console.warn('Erro clandestinas:', e); _clandestinasPort = []; }
+}
+
+async function carregarEntradasHoje(){
+  if(!sb){ _entradasHoje = []; return; }
+  try{
+    const hoje0 = new Date(); hoje0.setHours(0,0,0,0);
+    const { data, error } = await sb.from('portaria_eventos')
+      .select('*')
+      .eq('condo_id', _condoSel)
+      .gte('hora', hoje0.toISOString())
+      .order('hora', {ascending:false});
+    if(error) throw error;
+    _entradasHoje = data || [];
+  }catch(e){ console.warn('Erro entradas:', e); _entradasHoje = []; }
+}
+
+// Devolve prestadores ainda dentro (entrada hoje sem saída posterior na mesma unidade)
+function prestadoresAindaDentro(torre, num){
+  const tS = torre.toString();
+  const nS = num.toString();
+  const evs = _entradasHoje.filter(e =>
+    (e.torre||'').toString() === tS &&
+    (e.apto||'').toString() === nS
+  );
+  // Agrupa: cada entrada vê se houve saída referenciando seu id
+  const entradas = evs.filter(e => e.tipo_evento === 'entrada_prestador');
+  const saidas = evs.filter(e => e.tipo_evento === 'saida_prestador');
+  const idsSaidos = new Set(saidas.map(s => s.observacao?.match(/entrada:([0-9a-f-]{36})/i)?.[1]).filter(Boolean));
+  return entradas.filter(e => !idsSaidos.has(e.id));
 }
 
 function subscribeRealtimePortaria(){
@@ -502,6 +532,7 @@ function abrirUnidade(torre, num){
 
     <button class="btn-primary" id="btn-registrar" onclick="registrarEntrada()">📝 Registrar entrada (<span id="btn-count">1</span>) · ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</button>
     ${(st.cls==='st-none')?'<button class="btn-danger" onclick="marcarClandestinaUnidade()">⚠ Marcar como obra não autorizada</button>':''}
+    ${renderSaidaPrestador(torre, num)}
   `;
   // inicia com 1 prestador
   _prestList = [{nome:'',cpf:'',tel:''}];
@@ -546,6 +577,53 @@ function removerPrestador(i){
 function fecharModal(){
   document.getElementById('modal-bg').classList.remove('show');
   _unidadeSel = null;
+}
+
+function renderSaidaPrestador(torre, num){
+  const dentro = prestadoresAindaDentro(torre, num);
+  if(!dentro.length) return '';
+  const lista = dentro.map(e => {
+    const hora = new Date(e.hora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:7px;margin-bottom:5px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12.5px;font-weight:700;color:var(--text)">👤 ${esc(e.prestador_nome||'?')}</div>
+        <div style="font-size:10.5px;color:var(--text2)">${esc(e.tipo_servico||'')} · entrou ${hora}</div>
+      </div>
+      <button onclick="registrarSaida('${e.id}')" style="background:var(--lime);color:#0F1A1C;border:none;padding:6px 11px;border-radius:6px;font-size:11.5px;font-weight:800;cursor:pointer">🚪 Saída</button>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+    <h4 style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--turq);font-weight:700;margin-bottom:8px">🚪 Prestadores ainda dentro (${dentro.length})</h4>
+    ${lista}
+  </div>`;
+}
+function esc(s){ return (s||'').toString().replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function registrarSaida(idEntrada){
+  const ent = _entradasHoje.find(e => e.id === idEntrada);
+  if(!ent){ toast('Entrada não encontrada','err'); return; }
+  if(!confirm(`Registrar SAÍDA de ${ent.prestador_nome}?`)) return;
+  const evento = {
+    condo_id: _condoSel,
+    porteiro: _porteiro,
+    torre: ent.torre,
+    apto: ent.apto,
+    tipo_evento: 'saida_prestador',
+    tipo_servico: ent.tipo_servico,
+    prestador_nome: ent.prestador_nome,
+    prestador_cpf: ent.prestador_cpf,
+    prestador_tel: ent.prestador_tel,
+    observacao: `Saída de entrada:${ent.id}`,
+    hora: new Date().toISOString()
+  };
+  const r = await salvarEvento(evento);
+  if(r?.local){ toast('💾 Saída salva (será sincronizada)'); }
+  else { toast(`✅ Saída registrada — ${ent.prestador_nome}`); }
+  await carregarEntradasHoje();
+  // re-renderiza modal se ainda estiver aberto na mesma unidade
+  if(_unidadeSel && _unidadeSel.torre===ent.torre && _unidadeSel.num.toString()===ent.apto.toString()){
+    abrirUnidade(ent.torre, parseInt(ent.apto));
+  }
 }
 
 async function registrarEntrada(){
@@ -594,6 +672,7 @@ async function registrarEntrada(){
   } else {
     toast(`✅ ${okOnline.length} prestador(es) registrado(s)`);
   }
+  await carregarEntradasHoje();
   fecharModal();
 }
 
