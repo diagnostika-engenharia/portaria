@@ -170,7 +170,7 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       Sair
     </button>
   </header>
-  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v3</div>
+  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v4 · multi-prestador</div>
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
@@ -442,12 +442,9 @@ function renderGrid(){
       </div>`);
     }
   });
-  // limitar a 240 cells por performance (sem busca)
-  if(!q && cells.length > 240){
-    grid.innerHTML = cells.slice(0,240).join('') + `<div style="grid-column:1/-1;text-align:center;padding:14px;color:var(--text2);font-size:12px">+${cells.length-240} unidades — use a busca para localizar</div>`;
-  } else {
-    grid.innerHTML = cells.join('') || `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text2)">Nenhuma unidade encontrada.</div>`;
-  }
+  // Renderiza TODAS as unidades (sem cap arbitrário)
+  // Tested Monte Carlo (256), Primavera (480), Santa Clara (160), Morumbi (186), Jardins (140)
+  grid.innerHTML = cells.join('') || `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text2)">Nenhuma unidade encontrada.</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -476,7 +473,7 @@ function abrirUnidade(torre, num){
 
   document.getElementById('m-body').innerHTML = `
     ${alertHtml}
-    <label>Tipo de serviço</label>
+    <label>Tipo de serviço / obra <span style="color:var(--text3);font-weight:400;text-transform:none">(aplica a toda a equipe)</span></label>
     <select id="m-tipo">
       <option value="">— selecione —</option>
       <option>Pedreiro</option>
@@ -487,27 +484,63 @@ function abrirUnidade(torre, num){
       <option>Marceneiro</option>
       <option>Serralheiro</option>
       <option>Marmoraria</option>
+      <option>Vidraceiro</option>
+      <option>Empresa de reforma (várias especialidades)</option>
       <option>Entrega de material</option>
+      <option>Mudança</option>
       <option>Outro</option>
     </select>
-    <label>Nome do prestador</label>
-    <input type="text" id="m-nome" placeholder="Ex: Carlos Souza" autocomplete="name">
-    <div class="row">
-      <div>
-        <label>CPF (opcional)</label>
-        <input type="text" id="m-cpf" placeholder="000.000.000-00" inputmode="numeric">
-      </div>
-      <div>
-        <label>Telefone</label>
-        <input type="text" id="m-tel" placeholder="(19) 99999-9999" inputmode="tel">
-      </div>
-    </div>
-    <label>Observação (opcional)</label>
-    <input type="text" id="m-obs" placeholder="Ex: chegou de Fiorino branca">
-    <button class="btn-primary" onclick="registrarEntrada()">📝 Registrar entrada · ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</button>
+
+    <label style="margin-top:18px;display:flex;align-items:center;justify-content:space-between">
+      <span>Prestadores que vão entrar <span id="m-count" style="background:var(--turq);color:#0F1A1C;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:800;margin-left:5px">1</span></span>
+      <button type="button" onclick="adicionarPrestador()" style="background:var(--turq);color:#0F1A1C;border:none;padding:5px 11px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">+ Adicionar</button>
+    </label>
+    <div id="m-prestadores"></div>
+
+    <label style="margin-top:14px">Observação geral <span style="color:var(--text3);font-weight:400;text-transform:none">(opcional — ex: Fiorino placa ABC-1234)</span></label>
+    <input type="text" id="m-obs" placeholder="Ex: chegaram em Fiorino branca placa ABC-1234">
+
+    <button class="btn-primary" id="btn-registrar" onclick="registrarEntrada()">📝 Registrar entrada (<span id="btn-count">1</span>) · ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</button>
     ${(st.cls==='st-none')?'<button class="btn-danger" onclick="marcarClandestinaUnidade()">⚠ Marcar como obra clandestina</button>':''}
   `;
+  // inicia com 1 prestador
+  _prestList = [{nome:'',cpf:'',tel:''}];
+  renderPrestadores();
   document.getElementById('modal-bg').classList.add('show');
+}
+
+let _prestList = [];
+
+function renderPrestadores(){
+  const wrap = document.getElementById('m-prestadores');
+  if(!wrap) return;
+  wrap.innerHTML = _prestList.map((p,i) => `
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:11px;color:var(--turq);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Prestador ${i+1}</span>
+        ${_prestList.length>1?`<button type="button" onclick="removerPrestador(${i})" style="background:rgba(220,38,38,.2);color:#FCA5A5;border:none;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">× remover</button>`:''}
+      </div>
+      <input type="text" placeholder="Nome completo *" value="${(p.nome||'').replace(/"/g,'&quot;')}" oninput="_prestList[${i}].nome=this.value" autocomplete="name" style="margin-bottom:6px">
+      <div class="row">
+        <input type="text" placeholder="CPF (opcional)" value="${p.cpf||''}" oninput="_prestList[${i}].cpf=this.value" inputmode="numeric">
+        <input type="text" placeholder="Telefone (opcional)" value="${p.tel||''}" oninput="_prestList[${i}].tel=this.value" inputmode="tel">
+      </div>
+    </div>
+  `).join('');
+  const cnt = document.getElementById('m-count');
+  if(cnt) cnt.textContent = _prestList.length;
+  const btnC = document.getElementById('btn-count');
+  if(btnC) btnC.textContent = _prestList.length;
+}
+
+function adicionarPrestador(){
+  _prestList.push({nome:'',cpf:'',tel:''});
+  renderPrestadores();
+}
+
+function removerPrestador(i){
+  _prestList.splice(i,1);
+  renderPrestadores();
 }
 
 function fecharModal(){
@@ -517,27 +550,50 @@ function fecharModal(){
 
 async function registrarEntrada(){
   const tipo = document.getElementById('m-tipo').value;
-  const nome = document.getElementById('m-nome').value.trim();
-  const cpf  = document.getElementById('m-cpf').value.trim();
-  const tel  = document.getElementById('m-tel').value.trim();
   const obs  = document.getElementById('m-obs').value.trim();
   if(!tipo){ toast('Selecione o tipo de serviço','err'); return; }
-  if(!nome){ toast('Informe o nome do prestador','err'); return; }
-  const evento = {
+
+  // valida prestadores: pelo menos 1 com nome
+  const validos = _prestList.filter(p => (p.nome||'').trim().length >= 2);
+  if(!validos.length){ toast('Informe o nome de pelo menos 1 prestador','err'); return; }
+
+  const btn = document.getElementById('btn-registrar');
+  if(btn){ btn.disabled = true; btn.textContent = 'Salvando...'; }
+
+  const horaIso = new Date().toISOString();
+  // grupo_id para agrupar entradas da mesma equipe no PMP
+  const grupoId = `${_condoSel}-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+  const eventos = validos.map(p => ({
     condo_id: _condoSel,
     porteiro: _porteiro,
     torre: _unidadeSel.torre,
     apto: _unidadeSel.num,
     tipo_evento: 'entrada_prestador',
     tipo_servico: tipo,
-    prestador_nome: nome,
-    prestador_cpf: cpf || null,
-    prestador_tel: tel || null,
-    observacao: obs || null,
-    hora: new Date().toISOString(),
-  };
-  await salvarEvento(evento);
-  toast('✅ Entrada registrada');
+    prestador_nome: p.nome.trim(),
+    prestador_cpf: (p.cpf||'').trim() || null,
+    prestador_tel: (p.tel||'').trim() || null,
+    observacao: obs ? `[Equipe ${grupoId.slice(-3)}] ${obs}` : `[Equipe ${grupoId.slice(-3)}]`,
+    hora: horaIso,
+  }));
+
+  const okOnline = [], okLocal = [];
+  for(const ev of eventos){
+    try{
+      const r = await salvarEvento(ev);
+      if(r?.local) okLocal.push(ev.prestador_nome);
+      else okOnline.push(ev.prestador_nome);
+    }catch(e){
+      console.warn('Falha:', ev.prestador_nome, e);
+      okLocal.push(ev.prestador_nome);
+    }
+  }
+
+  if(okLocal.length){
+    toast(`✅ ${eventos.length} prestador(es) — ${okLocal.length} salvos offline, vão sincronizar`, '');
+  } else {
+    toast(`✅ ${okOnline.length} prestador(es) registrado(s)`);
+  }
   fecharModal();
 }
 
@@ -575,14 +631,68 @@ async function salvarEvento(evento){
     try{
       const { error } = await sb.from('portaria_eventos').insert(evento);
       if(error) throw error;
-      return;
+      return {ok:true, local:false};
     }catch(e){ console.warn('Erro Supabase, salvando local:', e); }
   }
   // fallback localStorage
   const arr = JSON.parse(localStorage.getItem('portaria.eventos.pendentes')||'[]');
-  arr.push(evento);
+  arr.push({...evento, _addedAt: Date.now()});
   localStorage.setItem('portaria.eventos.pendentes', JSON.stringify(arr));
+  atualizarPendentesBadge();
+  return {ok:true, local:true};
 }
+
+async function sincronizarPendentes(){
+  if(!sb || !navigator.onLine) return;
+  const arr = JSON.parse(localStorage.getItem('portaria.eventos.pendentes')||'[]');
+  if(!arr.length) return;
+  console.log(`[portaria] tentando sincronizar ${arr.length} evento(s) pendente(s)…`);
+  const restantes = [];
+  for(const ev of arr){
+    const {_addedAt, ...payload} = ev;
+    try{
+      const { error } = await sb.from('portaria_eventos').insert(payload);
+      if(error) throw error;
+      console.log('[portaria] sincronizado:', payload.prestador_nome||payload.tipo_evento);
+    }catch(e){
+      console.warn('[portaria] falha sync:', e);
+      restantes.push(ev);
+    }
+  }
+  localStorage.setItem('portaria.eventos.pendentes', JSON.stringify(restantes));
+  if(arr.length > restantes.length){
+    toast(`✅ ${arr.length - restantes.length} evento(s) sincronizado(s)`);
+  }
+  atualizarPendentesBadge();
+}
+
+function atualizarPendentesBadge(){
+  const arr = JSON.parse(localStorage.getItem('portaria.eventos.pendentes')||'[]');
+  let el = document.getElementById('badge-pendentes');
+  if(arr.length){
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'badge-pendentes';
+      el.style.cssText = 'position:fixed;top:60px;right:10px;background:#F59E0B;color:#000;padding:6px 12px;border-radius:18px;font-size:11px;font-weight:800;z-index:50;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)';
+      el.onclick = sincronizarPendentes;
+      document.body.appendChild(el);
+    }
+    el.textContent = `⏳ ${arr.length} pendente(s) — toque para sincronizar`;
+  } else if(el){
+    el.remove();
+  }
+}
+
+// auto-sync quando voltar a conexão
+window.addEventListener('online', sincronizarPendentes);
+// sync periódico (a cada 2 min se houver pendentes)
+setInterval(() => {
+  const arr = JSON.parse(localStorage.getItem('portaria.eventos.pendentes')||'[]');
+  if(arr.length) sincronizarPendentes();
+}, 120000);
+// init badge ao carregar
+setTimeout(atualizarPendentesBadge, 1500);
+setTimeout(sincronizarPendentes, 3000);
 
 function toast(msg, kind=''){
   const t = document.getElementById('toast');
