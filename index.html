@@ -170,7 +170,7 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       Sair
     </button>
   </header>
-  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v5</div>
+  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v6</div>
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
@@ -460,15 +460,15 @@ function abrirUnidade(torre, num){
   let alertHtml = '';
   if(st.cls==='st-art'){
     const r = refs[0];
-    alertHtml = `<div class="alert ok"><b>✅ Reforma autorizada</b>ART emitida${r.art_numero?` nº ${r.art_numero}`:''}. Liberação permitida — registre a entrada.</div>`;
+    alertHtml = `<div class="alert ok"><b>✅ Reforma aprovada — pode liberar</b>Esta unidade tem reforma registrada com ART${r.art_numero?` (nº ${r.art_numero})`:''}. Registre a entrada do prestador normalmente.</div>`;
   } else if(st.cls==='st-aguardando'){
-    alertHtml = `<div class="alert warn"><b>⏳ Aguardando ART da Diagnóstika</b>A reforma foi declarada mas ainda não tem ART. Verifique com o síndico(a) antes de liberar.</div>`;
+    alertHtml = `<div class="alert warn"><b>⏳ Reforma em análise pela Diagnóstika</b>A reforma foi declarada mas a documentação ainda está sendo avaliada. Confirme com o(a) síndico(a) antes de liberar a entrada — ou aguarde a aprovação.</div>`;
   } else if(st.cls==='st-semrt'){
-    alertHtml = `<div class="alert danger"><b>⚠ Sem responsável técnico</b>A reforma está declarada mas SEM ART e SEM RT. NÃO libere sem autorização do síndico(a). Acione a Diagnóstika.</div>`;
+    alertHtml = `<div class="alert danger"><b>⚠ Reforma sem responsável técnico</b>Esta reforma foi declarada mas ainda não tem ART nem RT registrado. Por segurança, libere apenas com autorização expressa do(a) síndico(a). Em caso de dúvida, acione a Diagnóstika.</div>`;
   } else if(st.cls==='st-clandestina'){
-    alertHtml = `<div class="alert danger"><b>🚨 Obra não autorizada</b>Esta unidade foi sinalizada como obra sem aprovação. Bloqueio até regularização.</div>`;
+    alertHtml = `<div class="alert danger"><b>🚨 Obra não autorizada</b>Esta unidade foi sinalizada como obra sem aprovação prévia. Aguarde orientação do(a) síndico(a) ou da Diagnóstika antes de liberar qualquer entrada.</div>`;
   } else {
-    alertHtml = `<div class="alert warn"><b>Sem reforma registrada</b>Não há reforma ativa para esta unidade no sistema. Se houver obra em andamento, sinalize como NÃO AUTORIZADA ao final.</div>`;
+    alertHtml = `<div class="alert warn"><b>Sem reforma cadastrada</b>Não há reforma registrada para esta unidade. Para serviços comuns (manutenção, entrega, mudança), registre normalmente. Se for início de obra/reforma, sinalize como NÃO AUTORIZADA ao final.</div>`;
   }
 
   document.getElementById('m-body').innerHTML = `
