@@ -50,6 +50,9 @@ header .title strong{display:block;font-size:15px;font-weight:700;color:#fff}
 header .title small{font-size:11.5px;color:rgba(255,255,255,.75)}
 header .info{text-align:right;font-size:11.5px;color:rgba(255,255,255,.85);line-height:1.4}
 header .info b{display:block;color:#fff;font-size:13px}
+header .sair-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:5px;margin-left:12px}
+header .sair-btn:hover{background:rgba(255,255,255,.25)}
+header .sair-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
 main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
 .step-title{font-size:13.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:6px 0 12px}
@@ -124,11 +127,17 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
 <div class="login" id="login">
   <div class="login-card">
     <div class="logo"><img src="./assets/logo-vertical.png" alt="Diagnóstika"></div>
-    <h1>Portaria</h1>
-    <p class="sub">Selecione o condomínio e identifique-se</p>
+    <h1 id="li-titulo">Portaria</h1>
+    <p class="sub" id="li-sub">Identifique-se para iniciar o turno</p>
 
-    <label>Condomínio</label>
-    <div class="cond-chips" id="cond-chips"></div>
+    <div id="cond-section">
+      <label>Condomínio</label>
+      <div class="cond-chips" id="cond-chips"></div>
+    </div>
+
+    <div id="cond-locked" style="display:none;background:rgba(0,180,172,.10);border:1px solid rgba(0,180,172,.3);border-radius:8px;padding:12px 14px;margin-bottom:6px;font-size:13px;color:#A7F3D0;font-weight:600">
+      <span id="cond-locked-nome">—</span>
+    </div>
 
     <label>Seu nome</label>
     <input type="text" id="li-porteiro" placeholder="Ex: José da Silva" autocomplete="name">
@@ -153,6 +162,10 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       Porteiro: <b id="hd-porteiro">—</b>
       <span id="hd-clock">--:--</span> · <span id="hd-data">—</span>
     </div>
+    <button class="sair-btn" onclick="sairPortaria()" title="Encerrar turno">
+      <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sair
+    </button>
   </header>
 
   <main>
@@ -206,12 +219,39 @@ const CONDOMINIOS = {
 
 let _condoSel = null;
 let _porteiro = '';
-let _reformas = []; // demandas com tipo reforma
+let _reformas = [];        // demandas com tipo reforma
+let _clandestinasPort = []; // portaria_eventos com tipo_evento='obra_clandestina' não revisadas
 let _unidadeSel = null;
+let _condoLocked = false;  // se true, veio por URL ?c=
+
+// Lê parâmetro ?c= da URL pra travar o condomínio
+function parseCondoFromURL(){
+  try{
+    const p = new URLSearchParams(window.location.search);
+    const c = p.get('c');
+    if(c && CONDOMINIOS[c]) return c;
+  }catch(e){}
+  return null;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LOGIN
 function renderChips(){
+  // Se URL traz ?c=monte-carlo, trava o condomínio e esconde chips
+  const lock = parseCondoFromURL();
+  if(lock){
+    _condoSel = lock;
+    _condoLocked = true;
+    const c = CONDOMINIOS[lock];
+    document.getElementById('cond-section').style.display = 'none';
+    const locked = document.getElementById('cond-locked');
+    locked.style.display = 'block';
+    locked.innerHTML = `<span style="display:block;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text2);margin-bottom:4px">Condomínio</span>🏢 ${c.short}`;
+    document.getElementById('li-titulo').textContent = `Portaria ${c.short}`;
+    document.getElementById('li-sub').textContent = 'Identifique-se para iniciar o turno';
+    return;
+  }
+  // Senão, mostra chips (modo "centralizado Diagnóstika")
   const wrap = document.getElementById('cond-chips');
   wrap.innerHTML = Object.entries(CONDOMINIOS).map(([id,c]) =>
     `<button class="cond-chip" data-id="${id}" onclick="selCondo('${id}')">${c.short}</button>`).join('');
@@ -227,6 +267,21 @@ function validar(){
   const ok = _condoSel && nome.length>=3 && pin.length===4;
   document.getElementById('btn-entrar').disabled = !ok;
 }
+
+function sairPortaria(){
+  if(!confirm('Encerrar turno e sair da portaria?')) return;
+  // mantém URL ?c= se houver, só limpa sessão
+  localStorage.removeItem('portaria.sessao');
+  // se não está com URL travada, pode trocar de condomínio na próxima
+  if(!_condoLocked){ _condoSel = null; }
+  _porteiro = '';
+  // limpa subscribe
+  if(_realtimeSub){ try{ sb.removeChannel(_realtimeSub); }catch(e){} _realtimeSub = null; }
+  // recarrega a página (mais simples e garante estado limpo)
+  window.location.reload();
+}
+
+let _realtimeSub = null;
 document.addEventListener('input', e => {
   if(['li-porteiro','li-pin'].includes(e.target.id)) validar();
 });
@@ -257,8 +312,9 @@ async function iniciarApp(){
   document.getElementById('hd-porteiro').textContent = _porteiro;
   tickClock();
   setInterval(tickClock, 1000*30);
-  await carregarReformas();
+  await Promise.all([carregarReformas(), carregarClandestinas()]);
   renderGrid();
+  subscribeRealtimePortaria();
   document.getElementById('search').addEventListener('input', renderGrid);
 }
 
@@ -288,18 +344,50 @@ async function carregarReformas(){
   }catch(e){ console.warn('Erro Supabase:', e); _reformas = []; }
 }
 
+async function carregarClandestinas(){
+  if(!sb){ _clandestinasPort = []; return; }
+  try{
+    const { data, error } = await sb.from('portaria_eventos')
+      .select('*')
+      .eq('condo_id', _condoSel)
+      .eq('tipo_evento', 'obra_clandestina')
+      .is('revisada_em', null);
+    if(error) throw error;
+    _clandestinasPort = data || [];
+  }catch(e){ console.warn('Erro clandestinas:', e); _clandestinasPort = []; }
+}
+
+function subscribeRealtimePortaria(){
+  if(!sb || _realtimeSub) return;
+  try{
+    _realtimeSub = sb.channel('portaria_self_'+_condoSel)
+      .on('postgres_changes', {event:'*', schema:'public', table:'portaria_eventos', filter:`condo_id=eq.${_condoSel}`}, async () => {
+        await carregarClandestinas();
+        renderGrid();
+      })
+      .on('postgres_changes', {event:'*', schema:'public', table:'demandas', filter:`condo_id=eq.${_condoSel}`}, async () => {
+        await carregarReformas();
+        renderGrid();
+      })
+      .subscribe();
+  }catch(e){ console.warn('Subscribe falhou', e); }
+}
+
 function statusUnidade(torre, num){
-  // 1. obra clandestina marcada pela portaria → vermelho pisca
-  // 2. reforma com ART aprovada Diagnóstika → verde
-  // 3. reforma aprovada sem ART → amarelo
-  // 4. reforma declarada mas irregular (sem RT) → vermelho
-  // 5. sem registro → cinza
+  // 0. clandestina sinalizada pela portaria (não revisada) → vermelho pisca
+  const evCland = _clandestinasPort.find(e =>
+    ((e.torre||'').toString())==torre.toString() &&
+    ((e.apto||'').toString())==num.toString()
+  );
+  if(evCland) return {cls:'st-clandestina', label:'⚠ alert'};
+
+  // 1-5. status pela tabela demandas
   const refs = _reformas.filter(r => ((r.bloco||r.torre||'').toString())==torre.toString() && ((r.apto||r.unidade||'').toString())==num.toString());
   if(!refs.length) return {cls:'st-none', label:''};
   const r = refs[0];
   if(r.clandestina) return {cls:'st-clandestina', label:'⚠ alert'};
   const status = (r.status||'').toLowerCase();
-  const temART = r.art_emitida || r.art_numero || r.tem_art || /art/i.test(r.observacoes||'') || status==='aprovada' && r.responsavel_tecnico;
+  const temART = r.art_emitida || r.art_numero || r.tem_art || /art/i.test(r.observacoes||'') || (status==='aprovada' && r.responsavel_tecnico);
   const irregular = r.irregular || status==='rejeitada' || (status==='aprovada' && !r.responsavel_tecnico && !r.art_numero);
   if(temART) return {cls:'st-art', label:'📄 c/ART'};
   if(status==='em-analise' || status==='em_analise' || status==='analise' || status==='pendente') return {cls:'st-aguardando', label:'⏳ aguard'};
@@ -439,8 +527,8 @@ async function marcarClandestinaUnidade(){
   await salvarEvento(evento);
   toast('🚨 Alerta enviado à Diagnóstika');
   fecharModal();
-  // re-load reformas
-  await carregarReformas();
+  // re-load reformas + clandestinas pra pintar a unidade no grid
+  await Promise.all([carregarReformas(), carregarClandestinas()]);
   renderGrid();
 }
 
