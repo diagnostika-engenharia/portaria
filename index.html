@@ -375,24 +375,32 @@ function subscribeRealtimePortaria(){
 }
 
 function statusUnidade(torre, num){
+  const tS = torre.toString();
+  const nS = num.toString();
+
   // 0. clandestina sinalizada pela portaria (não revisada) → vermelho pisca
   const evCland = _clandestinasPort.find(e =>
-    ((e.torre||'').toString())==torre.toString() &&
-    ((e.apto||'').toString())==num.toString()
+    (e.torre||'').toString() === tS && (e.apto||'').toString() === nS
   );
   if(evCland) return {cls:'st-clandestina', label:'⚠ alert'};
 
-  // 1-5. status pela tabela demandas
-  const refs = _reformas.filter(r => ((r.bloco||r.torre||'').toString())==torre.toString() && ((r.apto||r.unidade||'').toString())==num.toString());
+  // 1-5. status pela tabela demandas (categoria='reforma')
+  const refs = _reformas.filter(r =>
+    (r.bloco||'').toString() === tS && (r.apto||'').toString() === nS
+  );
   if(!refs.length) return {cls:'st-none', label:''};
+
   const r = refs[0];
   if(r.clandestina) return {cls:'st-clandestina', label:'⚠ alert'};
+
   const status = (r.status||'').toLowerCase();
-  const temART = r.art_emitida || r.art_numero || r.tem_art || /art/i.test(r.observacoes||'') || (status==='aprovada' && r.responsavel_tecnico);
-  const irregular = r.irregular || status==='rejeitada' || (status==='aprovada' && !r.responsavel_tecnico && !r.art_numero);
+  const temART = !!r.art_numero;
+  const irregular = !!r.irregular;
+  const temRT = !!r.responsavel_tecnico;
+
   if(temART) return {cls:'st-art', label:'📄 c/ART'};
-  if(status==='em-analise' || status==='em_analise' || status==='analise' || status==='pendente') return {cls:'st-aguardando', label:'⏳ aguard'};
-  if(irregular) return {cls:'st-semrt', label:'⚠ sem ART'};
+  if(irregular || (status==='resolvida' && !temRT)) return {cls:'st-semrt', label:'⚠ sem ART'};
+  if(['aberta','em_andamento',''].includes(status)) return {cls:'st-aguardando', label:'⏳ aguard'};
   return {cls:'st-aguardando', label:'⏳ aguard'};
 }
 
