@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#155B67">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Portaria Diagnóstika">
+<title>Portaria — Diagnóstika</title>
+<link rel="icon" href="./assets/icon.png">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --teal:#155B67;--teal-dk:#0D3C44;--turq:#00B4AC;--lime:#8DB72A;
+  --amber:#F59E0B;--red:#DC2626;--red-lt:#7F1D1D;--green:#10B981;
+  --bg:#0F1A1C;--bg2:#152428;--panel:#1B2F33;--panel2:#243C42;
+  --text:#E5EEF0;--text2:#9CB0B4;--text3:#5A7A7E;
+  --line:#2D4147;
+}
+html,body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh;-webkit-font-smoothing:antialiased}
+button,input,select{font-family:inherit}
+input,select{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:11px 13px;border-radius:8px;font-size:14px;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--turq)}
+
+/* LOGIN */
+.login{position:fixed;inset:0;background:linear-gradient(135deg,#0F1A1C,#1B2F33);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+.login-card{background:var(--panel);border-radius:18px;padding:28px 24px;max-width:380px;width:100%;border:1px solid var(--line)}
+.login-card .logo{text-align:center;margin-bottom:18px}
+.login-card .logo img{height:54px;filter:brightness(0) invert(1)}
+.login-card h1{font-size:18px;color:var(--turq);margin-bottom:4px;text-align:center}
+.login-card .sub{font-size:12px;color:var(--text2);text-align:center;margin-bottom:20px}
+.login-card label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin:14px 0 6px;display:block}
+.cond-chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+.cond-chip{padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:transparent;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;text-align:left}
+.cond-chip:hover{border-color:var(--turq)}
+.cond-chip.active{background:var(--teal);border-color:var(--turq);color:#fff}
+.btn-go{width:100%;padding:13px;background:var(--turq);color:#0F1A1C;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;margin-top:18px;letter-spacing:.3px;text-transform:uppercase}
+.btn-go:hover{background:#33D9D0}
+.btn-go:disabled{opacity:.4;cursor:not-allowed}
+.login-err{background:rgba(220,38,38,.15);color:#FCA5A5;padding:10px;border-radius:8px;font-size:12px;margin-top:12px;border-left:3px solid var(--red);display:none}
+.login-err.show{display:block}
+
+/* APP */
+.app{display:none;min-height:100vh;flex-direction:column}
+.app.show{display:flex}
+header{background:linear-gradient(135deg,var(--teal),var(--teal-dk));padding:14px 18px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+header .emb{width:42px;height:42px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--teal);font-size:18px;flex-shrink:0}
+header .title{flex:1;min-width:0}
+header .title strong{display:block;font-size:15px;font-weight:700;color:#fff}
+header .title small{font-size:11.5px;color:rgba(255,255,255,.75)}
+header .info{text-align:right;font-size:11.5px;color:rgba(255,255,255,.85);line-height:1.4}
+header .info b{display:block;color:#fff;font-size:13px}
+
+main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
+.step-title{font-size:13.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin:6px 0 12px}
+.search-bar{position:relative;margin-bottom:16px}
+.search-bar::before{content:'🔍';position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;opacity:.6}
+.search-bar input{padding-left:38px}
+
+/* UNIT GRID */
+.unit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px;margin-bottom:18px}
+.unit{background:var(--panel);border:1.5px solid var(--line);border-radius:9px;padding:10px 6px;cursor:pointer;text-align:center;position:relative;transition:transform .12s,border-color .15s;min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.unit:hover{transform:translateY(-2px);border-color:var(--turq)}
+.unit .u-num{font-size:14px;font-weight:800;line-height:1}
+.unit .u-badge{font-size:9.5px;font-weight:700;display:flex;align-items:center;gap:2px}
+.unit.st-none{}
+.unit.st-art{border-color:var(--green);background:rgba(16,185,129,.08)}
+.unit.st-art .u-badge{color:var(--green)}
+.unit.st-aguardando{border-color:var(--amber);background:rgba(245,158,11,.10)}
+.unit.st-aguardando .u-badge{color:var(--amber)}
+.unit.st-semrt{border-color:var(--red);background:rgba(220,38,38,.10)}
+.unit.st-semrt .u-badge{color:#FCA5A5}
+.unit.st-clandestina{border-color:var(--red);background:var(--red);color:#fff;animation:pulse 1.4s infinite}
+.unit.st-clandestina .u-badge{color:#fff}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.6)}50%{box-shadow:0 0 0 8px rgba(220,38,38,0)}}
+
+.legend{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:11.5px;line-height:1.7;color:var(--text2)}
+.legend b{color:var(--text);text-transform:uppercase;font-size:11px;letter-spacing:.4px;display:block;margin-bottom:6px}
+.legend .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:-1px;border:1.5px solid}
+.legend .d-none{background:var(--panel2);border-color:var(--text3)}
+.legend .d-art{background:rgba(16,185,129,.2);border-color:var(--green)}
+.legend .d-aguardando{background:rgba(245,158,11,.2);border-color:var(--amber)}
+.legend .d-semrt{background:rgba(220,38,38,.2);border-color:var(--red)}
+.legend .d-clandestina{background:var(--red);border-color:var(--red);animation:pulse 1.4s infinite}
+
+/* FAB */
+.fab{position:fixed;bottom:22px;right:22px;background:var(--red);color:#fff;border:none;border-radius:50px;padding:14px 18px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 8px 24px rgba(220,38,38,.45);display:flex;align-items:center;gap:8px;z-index:20;letter-spacing:.3px}
+.fab:hover{background:#B91C1C}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center;z-index:200;padding:0}
+.modal-bg.show{display:flex}
+@media(min-width:600px){.modal-bg{align-items:center;padding:20px}}
+.modal{background:var(--bg2);border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;animation:slideUp .25s ease}
+@media(min-width:600px){.modal{border-radius:18px}}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal header{position:relative;padding:18px 20px;background:var(--teal);display:block}
+.modal header h2{font-size:16px;color:#fff;margin-bottom:4px}
+.modal header .sub{font-size:12px;color:rgba(255,255,255,.8)}
+.modal .close{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.15);border:none;color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;font-weight:700}
+.modal .body{padding:18px 20px}
+.alert{padding:12px 14px;border-radius:9px;font-size:12.5px;margin-bottom:14px;line-height:1.5;border-left:3px solid;font-weight:600}
+.alert.ok{background:rgba(16,185,129,.12);border-color:var(--green);color:#A7F3D0}
+.alert.warn{background:rgba(245,158,11,.12);border-color:var(--amber);color:#FDE68A}
+.alert.danger{background:rgba(220,38,38,.15);border-color:var(--red);color:#FCA5A5}
+.alert b{display:block;margin-bottom:3px;font-size:13px}
+.modal label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin:14px 0 6px;display:block}
+.modal .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn-primary{width:100%;padding:13px;background:var(--turq);color:#0F1A1C;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;margin-top:18px;letter-spacing:.3px;text-transform:uppercase}
+.btn-primary:hover{background:#33D9D0}
+.btn-danger{width:100%;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;margin-top:10px}
+.btn-danger:hover{background:#B91C1C}
+
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:12px 22px;border-radius:30px;font-weight:700;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:300;display:none;animation:fadeIn .3s ease}
+.toast.show{display:block}
+.toast.err{background:var(--red)}
+@keyframes fadeIn{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="login">
+  <div class="login-card">
+    <div class="logo"><img src="./assets/logo-vertical.png" alt="Diagnóstika"></div>
+    <h1>Portaria</h1>
+    <p class="sub">Selecione o condomínio e identifique-se</p>
+
+    <label>Condomínio</label>
+    <div class="cond-chips" id="cond-chips"></div>
+
+    <label>Seu nome</label>
+    <input type="text" id="li-porteiro" placeholder="Ex: José da Silva" autocomplete="name">
+
+    <label>PIN do condomínio (4 dígitos)</label>
+    <input type="password" id="li-pin" placeholder="••••" inputmode="numeric" maxlength="4">
+
+    <div class="login-err" id="li-err"></div>
+    <button class="btn-go" id="btn-entrar" disabled>Entrar na portaria</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <header>
+    <div class="emb" id="hd-emb">D</div>
+    <div class="title">
+      <strong id="hd-cond">—</strong>
+      <small>Registro de entrada de prestadores</small>
+    </div>
+    <div class="info">
+      Porteiro: <b id="hd-porteiro">—</b>
+      <span id="hd-clock">--:--</span> · <span id="hd-data">—</span>
+    </div>
+  </header>
+
+  <main>
+    <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
+    <div class="search-bar"><input type="text" id="search" placeholder="Buscar (ex: 502, B-502...)"></div>
+    <div class="unit-grid" id="unit-grid"></div>
+
+    <div class="legend">
+      <b>Legenda</b>
+      <span><span class="dot d-none"></span>cinza = sem reforma</span> ·
+      <span><span class="dot d-art"></span>verde = c/ART (autorizada)</span> ·
+      <span><span class="dot d-aguardando"></span>amarela = aguardando nossa ART</span> ·
+      <span><span class="dot d-semrt"></span>vermelha = sem RT (declarada mas irregular)</span> ·
+      <span><span class="dot d-clandestina"></span>pisca = obra clandestina detectada pela portaria</span>
+    </div>
+  </main>
+
+  <button class="fab" onclick="abrirClandestina()">⚠ Sinalizar obra clandestina</button>
+</div>
+
+<!-- MODAL ENTRADA -->
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)fecharModal()">
+  <div class="modal">
+    <header>
+      <button class="close" onclick="fecharModal()">×</button>
+      <h2 id="m-titulo">Unidade —</h2>
+      <div class="sub" id="m-sub">—</div>
+    </header>
+    <div class="body" id="m-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL='https://fimmjgdwhifsrrbreche.supabase.co';
+const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpbW1qZ2R3aGlmc3JyYnJlY2hlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NzU2NDIsImV4cCI6MjA5NTE1MTY0Mn0.eAmMS95M8BkfX3NCcOtHnhKWXy0jkvXwSGEoqv_Q21Q';
+let sb=null;
+try{ if(window.supabase) sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON,{auth:{persistSession:false}}); }catch(e){console.warn(e);}
+
+// PIN do condomínio (4 dígitos) — mude conforme acordo com cada síndico
+const CONDOMINIOS = {
+  'monte-carlo':         {short:'Monte Carlo',     emb:'MC', cor:'#155B67', pin:'2026', estrutura:{torres:['A','B'], aptosPorTorre:128, pavimentos:16, totalUnidades:256}},
+  'morada-morumbi':      {short:'Morada Morumbi',  emb:'MM', cor:'#00B4AC', pin:'2026', estrutura:{torres:['1','2','3'], aptosPorTorre:62, totalUnidades:186}},
+  'portal-primavera':    {short:'Portal Primavera',emb:'PP', cor:'#8DB72A', pin:'2026', estrutura:{torres:['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15'], aptosPorTorre:32, pavimentos:8, totalUnidades:480}},
+  'residencial-santa-clara':{short:'Santa Clara',  emb:'SC', cor:'#7D3C98', pin:'2026', estrutura:{torres:['1A','1B','2A','2B','3A','3B','4A','4B','5A','5B'], aptosPorTorre:16, pavimentos:4, totalUnidades:160}},
+  'jardins-do-malta':    {short:'Jardins do Malta',emb:'JM', cor:'#D4A24C', pin:'2026', estrutura:{torres:['1','2','3','4','5'], aptosPorTorre:28, pavimentos:5, totalUnidades:140}},
+};
+
+let _condoSel = null;
+let _porteiro = '';
+let _reformas = []; // demandas com tipo reforma
+let _unidadeSel = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOGIN
+function renderChips(){
+  const wrap = document.getElementById('cond-chips');
+  wrap.innerHTML = Object.entries(CONDOMINIOS).map(([id,c]) =>
+    `<button class="cond-chip" data-id="${id}" onclick="selCondo('${id}')">${c.short}</button>`).join('');
+}
+function selCondo(id){
+  _condoSel = id;
+  document.querySelectorAll('.cond-chip').forEach(el => el.classList.toggle('active', el.dataset.id===id));
+  validar();
+}
+function validar(){
+  const nome = document.getElementById('li-porteiro').value.trim();
+  const pin  = document.getElementById('li-pin').value.trim();
+  const ok = _condoSel && nome.length>=3 && pin.length===4;
+  document.getElementById('btn-entrar').disabled = !ok;
+}
+document.addEventListener('input', e => {
+  if(['li-porteiro','li-pin'].includes(e.target.id)) validar();
+});
+document.getElementById('btn-entrar').addEventListener('click', entrar);
+
+async function entrar(){
+  const nome = document.getElementById('li-porteiro').value.trim();
+  const pin  = document.getElementById('li-pin').value.trim();
+  const err  = document.getElementById('li-err');
+  err.classList.remove('show');
+  const condo = CONDOMINIOS[_condoSel];
+  if(!condo){ err.textContent='Selecione o condomínio.'; err.classList.add('show'); return; }
+  if(pin !== condo.pin){ err.textContent='PIN incorreto. Solicite o PIN ao síndico(a).'; err.classList.add('show'); return; }
+  _porteiro = nome;
+  localStorage.setItem('portaria.sessao', JSON.stringify({condo:_condoSel, porteiro:nome, ts:Date.now()}));
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  await iniciarApp();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APP
+async function iniciarApp(){
+  const c = CONDOMINIOS[_condoSel];
+  document.getElementById('hd-emb').textContent = c.emb;
+  document.getElementById('hd-emb').style.color = c.cor;
+  document.getElementById('hd-cond').textContent = `Portaria — ${c.short}`;
+  document.getElementById('hd-porteiro').textContent = _porteiro;
+  tickClock();
+  setInterval(tickClock, 1000*30);
+  await carregarReformas();
+  renderGrid();
+  document.getElementById('search').addEventListener('input', renderGrid);
+}
+
+function tickClock(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mo = String(d.getMonth()+1).padStart(2,'0');
+  document.getElementById('hd-clock').textContent = `${hh}:${mm}`;
+  document.getElementById('hd-data').textContent = `${dd}/${mo}`;
+}
+
+async function carregarReformas(){
+  if(!sb){ _reformas = []; return; }
+  try{
+    const { data, error } = await sb.from('demandas')
+      .select('*')
+      .eq('condo_id', _condoSel)
+      .is('deletada_em', null)
+      .order('created_at', {ascending:false});
+    if(error) throw error;
+    _reformas = (data||[]).filter(d => {
+      const t = (d.tipo||d.categoria||d.assunto||'').toLowerCase();
+      return t.includes('reforma');
+    });
+  }catch(e){ console.warn('Erro Supabase:', e); _reformas = []; }
+}
+
+function statusUnidade(torre, num){
+  // 1. obra clandestina marcada pela portaria → vermelho pisca
+  // 2. reforma com ART aprovada Diagnóstika → verde
+  // 3. reforma aprovada sem ART → amarelo
+  // 4. reforma declarada mas irregular (sem RT) → vermelho
+  // 5. sem registro → cinza
+  const refs = _reformas.filter(r => ((r.bloco||r.torre||'').toString())==torre.toString() && ((r.apto||r.unidade||'').toString())==num.toString());
+  if(!refs.length) return {cls:'st-none', label:''};
+  const r = refs[0];
+  if(r.clandestina) return {cls:'st-clandestina', label:'⚠ alert'};
+  const status = (r.status||'').toLowerCase();
+  const temART = r.art_emitida || r.art_numero || r.tem_art || /art/i.test(r.observacoes||'') || status==='aprovada' && r.responsavel_tecnico;
+  const irregular = r.irregular || status==='rejeitada' || (status==='aprovada' && !r.responsavel_tecnico && !r.art_numero);
+  if(temART) return {cls:'st-art', label:'📄 c/ART'};
+  if(status==='em-analise' || status==='em_analise' || status==='analise' || status==='pendente') return {cls:'st-aguardando', label:'⏳ aguard'};
+  if(irregular) return {cls:'st-semrt', label:'⚠ sem ART'};
+  return {cls:'st-aguardando', label:'⏳ aguard'};
+}
+
+function renderGrid(){
+  const c = CONDOMINIOS[_condoSel];
+  const e = c.estrutura;
+  const q = (document.getElementById('search')?.value||'').toLowerCase().trim();
+  const grid = document.getElementById('unit-grid');
+  const cells = [];
+  // gerar TODAS as unidades — mas se busca, filtrar
+  e.torres.forEach(t => {
+    for(let i=1; i<=e.aptosPorTorre; i++){
+      const num = i;
+      const id = `${t}-${num}`;
+      if(q && !id.toLowerCase().includes(q) && !num.toString().includes(q) && !t.toLowerCase().includes(q.replace(/[^a-z0-9]/gi,''))) continue;
+      const st = statusUnidade(t, num);
+      cells.push(`<div class="unit ${st.cls}" onclick="abrirUnidade('${t}',${num})">
+        <div class="u-num">${t}·${num}</div>
+        ${st.label?`<div class="u-badge">${st.label}</div>`:''}
+      </div>`);
+    }
+  });
+  // limitar a 240 cells por performance (sem busca)
+  if(!q && cells.length > 240){
+    grid.innerHTML = cells.slice(0,240).join('') + `<div style="grid-column:1/-1;text-align:center;padding:14px;color:var(--text2);font-size:12px">+${cells.length-240} unidades — use a busca para localizar</div>`;
+  } else {
+    grid.innerHTML = cells.join('') || `<div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text2)">Nenhuma unidade encontrada.</div>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODAL ENTRADA
+function abrirUnidade(torre, num){
+  _unidadeSel = {torre, num};
+  const st = statusUnidade(torre, num);
+  const refs = _reformas.filter(r => ((r.bloco||r.torre||'').toString())==torre.toString() && ((r.apto||r.unidade||'').toString())==num.toString());
+  const c = CONDOMINIOS[_condoSel];
+  document.getElementById('m-titulo').textContent = `Unidade ${torre}·${num}`;
+  document.getElementById('m-sub').textContent = c.short;
+
+  let alertHtml = '';
+  if(st.cls==='st-art'){
+    const r = refs[0];
+    alertHtml = `<div class="alert ok"><b>✅ Reforma autorizada</b>ART emitida${r.art_numero?` nº ${r.art_numero}`:''}. Liberação permitida — registre a entrada.</div>`;
+  } else if(st.cls==='st-aguardando'){
+    alertHtml = `<div class="alert warn"><b>⏳ Aguardando ART da Diagnóstika</b>A reforma foi declarada mas ainda não tem ART. Verifique com o síndico(a) antes de liberar.</div>`;
+  } else if(st.cls==='st-semrt'){
+    alertHtml = `<div class="alert danger"><b>⚠ Sem responsável técnico</b>A reforma está declarada mas SEM ART e SEM RT. NÃO libere sem autorização do síndico(a). Acione a Diagnóstika.</div>`;
+  } else if(st.cls==='st-clandestina'){
+    alertHtml = `<div class="alert danger"><b>🚨 Obra clandestina</b>Esta unidade foi sinalizada como obra não declarada. Bloqueio até regularização.</div>`;
+  } else {
+    alertHtml = `<div class="alert warn"><b>Sem reforma registrada</b>Não há reforma ativa para esta unidade no sistema. Se houver obra em andamento, sinalize como CLANDESTINA ao final.</div>`;
+  }
+
+  document.getElementById('m-body').innerHTML = `
+    ${alertHtml}
+    <label>Tipo de serviço</label>
+    <select id="m-tipo">
+      <option value="">— selecione —</option>
+      <option>Pedreiro</option>
+      <option>Encanador</option>
+      <option>Eletricista</option>
+      <option>Pintor</option>
+      <option>Gesseiro</option>
+      <option>Marceneiro</option>
+      <option>Serralheiro</option>
+      <option>Marmoraria</option>
+      <option>Entrega de material</option>
+      <option>Outro</option>
+    </select>
+    <label>Nome do prestador</label>
+    <input type="text" id="m-nome" placeholder="Ex: Carlos Souza" autocomplete="name">
+    <div class="row">
+      <div>
+        <label>CPF (opcional)</label>
+        <input type="text" id="m-cpf" placeholder="000.000.000-00" inputmode="numeric">
+      </div>
+      <div>
+        <label>Telefone</label>
+        <input type="text" id="m-tel" placeholder="(19) 99999-9999" inputmode="tel">
+      </div>
+    </div>
+    <label>Observação (opcional)</label>
+    <input type="text" id="m-obs" placeholder="Ex: chegou de Fiorino branca">
+    <button class="btn-primary" onclick="registrarEntrada()">📝 Registrar entrada · ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</button>
+    ${(st.cls==='st-none')?'<button class="btn-danger" onclick="marcarClandestinaUnidade()">⚠ Marcar como obra clandestina</button>':''}
+  `;
+  document.getElementById('modal-bg').classList.add('show');
+}
+
+function fecharModal(){
+  document.getElementById('modal-bg').classList.remove('show');
+  _unidadeSel = null;
+}
+
+async function registrarEntrada(){
+  const tipo = document.getElementById('m-tipo').value;
+  const nome = document.getElementById('m-nome').value.trim();
+  const cpf  = document.getElementById('m-cpf').value.trim();
+  const tel  = document.getElementById('m-tel').value.trim();
+  const obs  = document.getElementById('m-obs').value.trim();
+  if(!tipo){ toast('Selecione o tipo de serviço','err'); return; }
+  if(!nome){ toast('Informe o nome do prestador','err'); return; }
+  const evento = {
+    condo_id: _condoSel,
+    porteiro: _porteiro,
+    torre: _unidadeSel.torre,
+    apto: _unidadeSel.num,
+    tipo_evento: 'entrada_prestador',
+    tipo_servico: tipo,
+    prestador_nome: nome,
+    prestador_cpf: cpf || null,
+    prestador_tel: tel || null,
+    observacao: obs || null,
+    hora: new Date().toISOString(),
+  };
+  await salvarEvento(evento);
+  toast('✅ Entrada registrada');
+  fecharModal();
+}
+
+async function marcarClandestinaUnidade(){
+  if(!confirm(`Marcar ${_unidadeSel.torre}·${_unidadeSel.num} como obra CLANDESTINA?\n\nIsso aciona alerta para a Diagnóstika e o síndico(a).`)) return;
+  const evento = {
+    condo_id: _condoSel,
+    porteiro: _porteiro,
+    torre: _unidadeSel.torre,
+    apto: _unidadeSel.num,
+    tipo_evento: 'obra_clandestina',
+    observacao: 'Sinalizada pela portaria',
+    hora: new Date().toISOString(),
+  };
+  await salvarEvento(evento);
+  toast('🚨 Alerta enviado à Diagnóstika');
+  fecharModal();
+  // re-load reformas
+  await carregarReformas();
+  renderGrid();
+}
+
+function abrirClandestina(){
+  const torre = prompt('Torre / Bloco da obra clandestina (ex: A, B, 01...):');
+  if(!torre) return;
+  const num = prompt('Número do apartamento:');
+  if(!num) return;
+  _unidadeSel = {torre:torre.trim().toUpperCase(), num:num.trim()};
+  marcarClandestinaUnidade();
+}
+
+async function salvarEvento(evento){
+  // tentar Supabase
+  if(sb){
+    try{
+      const { error } = await sb.from('portaria_eventos').insert(evento);
+      if(error) throw error;
+      return;
+    }catch(e){ console.warn('Erro Supabase, salvando local:', e); }
+  }
+  // fallback localStorage
+  const arr = JSON.parse(localStorage.getItem('portaria.eventos.pendentes')||'[]');
+  arr.push(evento);
+  localStorage.setItem('portaria.eventos.pendentes', JSON.stringify(arr));
+}
+
+function toast(msg, kind=''){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show'+(kind?' '+kind:'');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-LOGIN se sessão recente (< 12h)
+(function(){
+  renderChips();
+  const s = JSON.parse(localStorage.getItem('portaria.sessao')||'null');
+  if(s && (Date.now()-s.ts) < 1000*60*60*12 && CONDOMINIOS[s.condo]){
+    _condoSel = s.condo;
+    _porteiro = s.porteiro;
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('app').classList.add('show');
+    iniciarApp();
+  }
+})();
+</script>
+</body>
+</html>
