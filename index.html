@@ -176,7 +176,7 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
       Sair
     </button>
   </header>
-  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v8 · CPF/email</div>
+  <div id="build-tag" style="position:fixed;bottom:6px;right:8px;font-size:9px;color:#5A7A7E;opacity:.5;z-index:5;font-family:monospace">build v9</div>
 
   <main>
     <h2 class="step-title">1. Toque na unidade onde o prestador vai entrar</h2>
@@ -241,7 +241,7 @@ function mascCPFPort(el){
   el.value = v;
 }
 let _reformas = [];        // demandas com tipo reforma
-let _clandestinasPort = []; // portaria_eventos com tipo_evento='obra_clandestina' não revisadas
+let _clandestinasPort = []; // portaria_eventos tipo_evento=obra_clandestina (não revisadas — termo técnico do banco)
 let _entradasHoje = [];    // entradas registradas hoje (pra saída)
 let _unidadeSel = null;
 let _condoLocked = false;  // se true, veio por URL ?c=
@@ -386,7 +386,7 @@ async function carregarClandestinas(){
       .is('revisada_em', null);
     if(error) throw error;
     _clandestinasPort = data || [];
-  }catch(e){ console.warn('Erro clandestinas:', e); _clandestinasPort = []; }
+  }catch(e){ console.warn('Erro obras não autorizadas:', e); _clandestinasPort = []; }
 }
 
 async function carregarEntradasHoje(){
@@ -438,7 +438,7 @@ function statusUnidade(torre, num){
   const tS = torre.toString();
   const nS = num.toString();
 
-  // 0. clandestina sinalizada pela portaria (não revisada) → vermelho pisca
+  // 0. obra não autorizada sinalizada pela portaria (não revisada) → vermelho pisca
   const evCland = _clandestinasPort.find(e =>
     (e.torre||'').toString() === tS && (e.apto||'').toString() === nS
   );
@@ -722,12 +722,12 @@ async function marcarClandestinaUnidade(){
   await salvarEvento(evento);
   toast('🚨 Alerta enviado à Diagnóstika');
   fecharModal();
-  // re-load reformas + clandestinas pra pintar a unidade no grid
+  // re-load reformas + obras não autorizadas pra pintar a unidade no grid
   await Promise.all([carregarReformas(), carregarClandestinas()]);
   renderGrid();
 }
 
-function abrirClandestina(){
+function abrirClandestina(){ // identificador histórico — mantido por compat de event handler
   const torre = prompt('Torre / Bloco da obra não autorizada (ex: A, B, 01...):');
   if(!torre) return;
   const num = prompt('Número do apartamento:');
