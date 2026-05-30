@@ -480,9 +480,13 @@ function statusUnidade(torre, num){
   if(evCland) return {cls:'st-clandestina', label:'⚠ alert'};
 
   // 1-5. status pela tabela demandas (categoria='reforma')
-  const refs = _reformas.filter(r =>
-    (r.bloco||'').toString() === tS && (r.apto||'').toString() === nS
-  );
+  // FIX auditoria 360 — também olha r.detalhes.bloco/apto (fallback quando
+  // a demanda foi aberta pelo morador.html, que envia bloco/apto dentro de detalhes)
+  const refs = _reformas.filter(r => {
+    const rb = (r.bloco || r.detalhes?.bloco || '').toString();
+    const ra = (r.apto  || r.detalhes?.apto  || '').toString();
+    return rb === tS && ra === nS;
+  });
   if(!refs.length) return {cls:'st-none', label:''};
 
   const r = refs[0];
