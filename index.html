@@ -298,9 +298,16 @@ function renderChips(){
     return;
   }
   // Senão, mostra chips (modo "centralizado Diagnóstika")
+  // Fix auditoria: em demo, exibe APENAS o sandbox
+  const _demoMode2 = new URLSearchParams(location.search).get('demo') === '1';
   const wrap = document.getElementById('cond-chips');
-  wrap.innerHTML = Object.entries(CONDOMINIOS).map(([id,c]) =>
+  const condosVisiveis = _demoMode2
+    ? Object.entries(CONDOMINIOS).filter(([id]) => id === 'condominio-teste')
+    : Object.entries(CONDOMINIOS);
+  wrap.innerHTML = condosVisiveis.map(([id,c]) =>
     `<button class="cond-chip" data-id="${id}" onclick="selCondo('${id}')">${c.short}</button>`).join('');
+  // Auto-seleciona sandbox em modo demo
+  if(_demoMode2) { _condoSel = 'condominio-teste'; selCondo('condominio-teste'); }
 }
 function selCondo(id){
   _condoSel = id;
@@ -310,8 +317,9 @@ function selCondo(id){
 function validar(){
   const isDemo = new URLSearchParams(location.search).get('demo') === '1';
   if(isDemo){
-    // Demo libera o botão só com condo selecionado
-    document.getElementById('btn-entrar').disabled = !_condoSel;
+    // Demo: força sandbox e libera botão
+    _condoSel = _condoSel || 'condominio-teste';
+    document.getElementById('btn-entrar').disabled = false;
     return;
   }
   const nome = document.getElementById('li-porteiro').value.trim();
