@@ -280,6 +280,8 @@ let _condoSel = null;
 let _porteiro = '';
 let _porteiroCPF = '';
 let _porteiroEmail = '';
+let _pin = '';          // PIN da sessão — enviado a cada RPC (validação server-side)
+let _pollTimer = null;  // rede de segurança do realtime (recarrega a grade periodicamente)
 
 function mascCPFPort(el){
   let v = el.value.replace(/\D/g,'').slice(0,11);
@@ -395,7 +397,8 @@ async function entrar(){
   _porteiro = nome;
   _porteiroCPF = cpf;
   _porteiroEmail = email;
-  localStorage.setItem('portaria.sessao', JSON.stringify({condo:_condoSel, porteiro:nome, cpf, email, ts:Date.now()}));
+  _pin = pin;
+  localStorage.setItem('portaria.sessao', JSON.stringify({condo:_condoSel, porteiro:nome, cpf, email, pin, ts:Date.now()}));
   document.getElementById('login').style.display = 'none';
   document.getElementById('app').classList.add('show');
   await iniciarApp();
@@ -411,9 +414,12 @@ async function iniciarApp(){
   document.getElementById('hd-porteiro').textContent = _porteiro;
   tickClock();
   setInterval(tickClock, 1000*30);
-  await Promise.all([carregarReformas(), carregarClandestinas(), carregarEntradasHoje()]);
-  renderGrid();
+  await recarregarGrade();
   subscribeRealtimePortaria();
+  // Rede de segurança: além do broadcast, recarrega a grade a cada 45s
+  // (garante atualização mesmo se um ping de realtime se perder).
+  if(_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(recarregarGrade, 45000);
   document.getElementById('search').addEventListener('input', renderGrid);
 }
 
@@ -428,46 +434,39 @@ function tickClock(){
 }
 
 async function carregarReformas(){
-  if(!sb){ _reformas = []; return; }
+  if(!sb || !_pin){ _reformas = []; return; }
   try{
-    const { data, error } = await sb.from('demandas')
-      .select('*')
-      .eq('condo_id', _condoSel)
-      .is('deletada_em', null)
-      .order('created_at', {ascending:false});
+    // RPC escopada por condo (valida PIN no servidor); devolve as demandas do condo.
+    const { data, error } = await sb.rpc('portaria_reformas_do_condo', {p_condo_id:_condoSel, p_pin:_pin});
     if(error) throw error;
     _reformas = (data||[]).filter(d => {
       const t = (d.tipo||d.categoria||d.assunto||'').toLowerCase();
       return t.includes('reforma');
     });
-  }catch(e){ console.warn('Erro Supabase:', e); _reformas = []; }
+  }catch(e){ console.warn('Erro reformas (RPC):', e); _reformas = []; }
 }
 
 async function carregarClandestinas(){
-  if(!sb){ _clandestinasPort = []; return; }
+  if(!sb || !_pin){ _clandestinasPort = []; return; }
   try{
-    const { data, error } = await sb.from('portaria_eventos')
-      .select('*')
-      .eq('condo_id', _condoSel)
-      .eq('tipo_evento', 'obra_clandestina')
-      .is('revisada_em', null);
+    // RPC escopada por condo (valida PIN no servidor). Filtro no cliente.
+    const { data, error } = await sb.rpc('portaria_eventos_do_condo', {p_condo_id:_condoSel, p_pin:_pin});
     if(error) throw error;
-    _clandestinasPort = data || [];
-  }catch(e){ console.warn('Erro obras não autorizadas:', e); _clandestinasPort = []; }
+    _clandestinasPort = (data||[]).filter(e => e.tipo_evento==='obra_clandestina' && !e.revisada_em);
+  }catch(e){ console.warn('Erro obras não autorizadas (RPC):', e); _clandestinasPort = []; }
 }
 
 async function carregarEntradasHoje(){
-  if(!sb){ _entradasHoje = []; return; }
+  if(!sb || !_pin){ _entradasHoje = []; return; }
   try{
     const hoje0 = new Date(); hoje0.setHours(0,0,0,0);
-    const { data, error } = await sb.from('portaria_eventos')
-      .select('*')
-      .eq('condo_id', _condoSel)
-      .gte('hora', hoje0.toISOString())
-      .order('hora', {ascending:false});
+    // RPC escopada por condo (valida PIN no servidor). Filtra "hoje" no cliente.
+    const { data, error } = await sb.rpc('portaria_eventos_do_condo', {p_condo_id:_condoSel, p_pin:_pin});
     if(error) throw error;
-    _entradasHoje = data || [];
-  }catch(e){ console.warn('Erro entradas:', e); _entradasHoje = []; }
+    _entradasHoje = (data||[])
+      .filter(e => e.hora && new Date(e.hora) >= hoje0)
+      .sort((a,b)=> new Date(b.hora) - new Date(a.hora));
+  }catch(e){ console.warn('Erro entradas (RPC):', e); _entradasHoje = []; }
 }
 
 // Devolve prestadores ainda dentro (entrada hoje sem saída posterior na mesma unidade)
@@ -485,18 +484,21 @@ function prestadoresAindaDentro(torre, num){
   return entradas.filter(e => !idsSaidos.has(e.id));
 }
 
+async function recarregarGrade(){
+  await Promise.all([carregarReformas(), carregarClandestinas(), carregarEntradasHoje()]);
+  renderGrid();
+}
+
 function subscribeRealtimePortaria(){
   if(!sb || _realtimeSub) return;
   try{
-    _realtimeSub = sb.channel('portaria_self_'+_condoSel)
-      .on('postgres_changes', {event:'*', schema:'public', table:'portaria_eventos', filter:`condo_id=eq.${_condoSel}`}, async () => {
-        await carregarClandestinas();
-        renderGrid();
-      })
-      .on('postgres_changes', {event:'*', schema:'public', table:'demandas', filter:`condo_id=eq.${_condoSel}`}, async () => {
-        await carregarReformas();
-        renderGrid();
-      })
+    // Realtime via BROADCAST (Opção B): como o acesso anônimo direto à tabela
+    // foi fechado, não dá pra usar postgres_changes (respeita RLS e o anon não
+    // enxerga a linha). Em vez disso, o banco emite um ping "algo mudou" no
+    // canal do condomínio (SEM dado sensível) e a portaria recarrega a grade
+    // pelas RPCs escopadas. A RPC é a fonte de verdade.
+    _realtimeSub = sb.channel('portaria-'+_condoSel)
+      .on('broadcast', {event:'change'}, () => { recarregarGrade(); })
       .subscribe();
   }catch(e){ console.warn('Subscribe falhou', e); }
 }
@@ -808,13 +810,14 @@ function abrirClandestina(){ // identificador histórico — mantido por compat 
 }
 
 async function salvarEvento(evento){
-  // tentar Supabase
-  if(sb){
+  // tentar Supabase (via RPC escopada — anon não insere direto na tabela)
+  if(sb && _pin){
     try{
-      const { error } = await sb.from('portaria_eventos').insert(evento);
+      const { error } = await sb.rpc('portaria_registrar_evento',
+        {p_condo_id: evento.condo_id || _condoSel, p_pin: _pin, p_evento: evento});
       if(error) throw error;
       return {ok:true, local:false};
-    }catch(e){ console.warn('Erro Supabase, salvando local:', e); }
+    }catch(e){ console.warn('Erro Supabase (RPC), salvando local:', e); }
   }
   // fallback localStorage
   const arr = JSON.parse(localStorage.getItem('portaria.eventos.pendentes')||'[]');
@@ -825,7 +828,7 @@ async function salvarEvento(evento){
 }
 
 async function sincronizarPendentes(){
-  if(!sb || !navigator.onLine) return;
+  if(!sb || !navigator.onLine || !_pin) return;   // precisa do PIN da sessão p/ a RPC
   const arr = JSON.parse(localStorage.getItem('portaria.eventos.pendentes')||'[]');
   if(!arr.length) return;
   console.log(`[portaria] tentando sincronizar ${arr.length} evento(s) pendente(s)…`);
@@ -833,7 +836,8 @@ async function sincronizarPendentes(){
   for(const ev of arr){
     const {_addedAt, ...payload} = ev;
     try{
-      const { error } = await sb.from('portaria_eventos').insert(payload);
+      const { error } = await sb.rpc('portaria_registrar_evento',
+        {p_condo_id: payload.condo_id || _condoSel, p_pin: _pin, p_evento: payload});
       if(error) throw error;
       console.log('[portaria] sincronizado:', payload.prestador_nome||payload.tipo_evento);
     }catch(e){
@@ -888,11 +892,13 @@ function toast(msg, kind=''){
 (function(){
   renderChips();
   const s = JSON.parse(localStorage.getItem('portaria.sessao')||'null');
-  if(s && (Date.now()-s.ts) < 1000*60*60*12 && CONDOMINIOS[s.condo]){
+  // exige s.pin: as RPCs escopadas precisam do PIN. Sessão antiga sem PIN → re-login.
+  if(s && s.pin && (Date.now()-s.ts) < 1000*60*60*12 && CONDOMINIOS[s.condo]){
     _condoSel = s.condo;
     _porteiro = s.porteiro;
     _porteiroCPF = s.cpf || '';
     _porteiroEmail = s.email || '';
+    _pin = s.pin;
     document.getElementById('login').style.display = 'none';
     document.getElementById('app').classList.add('show');
     iniciarApp();
