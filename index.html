@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://fimmjgdwhifsrrbreche.supabase.co wss://fimmjgdwhifsrrbreche.supabase.co; img-src 'self' data: blob: https://fimmjgdwhifsrrbreche.supabase.co; frame-src 'none'; object-src 'none'; base-uri 'self';">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#155B67">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -151,8 +152,8 @@ main{flex:1;padding:18px 16px;max-width:1100px;margin:0 auto;width:100%}
     <label>E-mail</label>
     <input type="email" id="li-email" placeholder="seu@email.com" autocomplete="email">
 
-    <label>PIN do condomínio (4 dígitos)</label>
-    <input type="password" id="li-pin" placeholder="••••" inputmode="numeric" maxlength="4">
+    <label>PIN do condomínio</label>
+    <input type="password" id="li-pin" placeholder="••••••" maxlength="6" autocapitalize="characters" autocomplete="off">
 
     <div class="login-err" id="li-err"></div>
     <button class="btn-go" id="btn-entrar" disabled>Entrar na portaria</button>
@@ -240,16 +241,39 @@ const SUPABASE_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 let sb=null;
 try{ if(window.supabase) sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON,{auth:{persistSession:false}}); }catch(e){console.warn(e);}
 
-// PIN do condomínio (4 dígitos) — mude conforme acordo com cada síndico
+// ─── Validação de PIN sem expor o valor no código (P1.1) ───
+// SHA-256 do PIN (maiúsculas) em hex.
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(str||'').toUpperCase()));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+// Valida o PIN: 1º tenta a RPC server-side (hash nunca sai do banco);
+// se a RPC ainda não existir, cai no fallback por hash local (nunca texto puro).
+async function validarPinPortaria(condoId, pin){
+  const condo = CONDOMINIOS[condoId];
+  if(!condo) return false;
+  if(sb){
+    try{
+      const {data, error} = await sb.rpc('validar_pin_portaria', {p_condo_id:condoId, p_pin:pin});
+      if(!error && typeof data === 'boolean') return data;   // RPC respondeu
+    }catch(e){ /* RPC indisponível → fallback */ }
+  }
+  // Fallback: compara hash local (não há PIN em texto puro no código)
+  if(condo.pinHash){ try{ return (await sha256Hex(pin)) === condo.pinHash; }catch(e){} }
+  return false;
+}
+
+// PIN do condomínio (4 a 6 caracteres) — validado por hash/RPC (P1.1)
 const CONDOMINIOS = {
-  'monte-carlo':         {short:'Monte Carlo',     emb:'MC', cor:'#155B67', pin:'2026', estrutura:{torres:['A','B'], aptosPorTorre:128, pavimentos:16, totalUnidades:256}},
-  'morada-morumbi':      {short:'Morada Morumbi',  emb:'MM', cor:'#00B4AC', pin:'2026', estrutura:{torres:['1','2','3'], aptosPorTorre:62, totalUnidades:186}},
-  'portal-primavera':    {short:'Portal Primavera',emb:'PP', cor:'#8DB72A', pin:'2026', estrutura:{torres:['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15'], aptosPorTorre:32, pavimentos:8, totalUnidades:480}},
-  'residencial-santa-clara':{short:'Santa Clara',  emb:'SC', cor:'#7D3C98', pin:'2026', estrutura:{torres:['1A','1B','2A','2B','3A','3B','4A','4B','5A','5B'], aptosPorTorre:16, pavimentos:4, totalUnidades:160}},
-  'jardins-do-malta':    {short:'Jardins do Malta',emb:'JM', cor:'#D4A24C', pin:'2026', estrutura:{torres:['1','2','3','4','5'], aptosPorTorre:28, pavimentos:5, totalUnidades:140}},
-  'menotti-del-picchia': {short:'Menotti del Picchia', emb:'MP', cor:'#9C5B2E', pin:'2026', estrutura:{torres:['1'], aptosPorTorre:12, pavimentos:6, totalUnidades:12}},   // ⚠ revisar estrutura
-  'montville-residence': {short:'MontVille',           emb:'MV', cor:'#1F5F8B', pin:'2026', estrutura:{torres:['1','2'], aptosPorTorre:20, pavimentos:5, totalUnidades:40}}, // ⚠ revisar estrutura
-  'condominio-teste':    {short:'TESTE (sandbox)',     emb:'TT', cor:'#5A7A7E', pin:'2026', estrutura:{torres:['T'], aptosPorTorre:10, pavimentos:2, totalUnidades:10}},
+  'monte-carlo':         {short:'Monte Carlo',     emb:'MC', cor:'#155B67', pinHash:'cc405c19fc73fde88fd23828ab4d26bc243fdfc43f961fc0175f37a50f579e40', estrutura:{torres:['A','B'], aptosPorTorre:128, pavimentos:16, totalUnidades:256}},
+  'morada-morumbi':      {short:'Morada Morumbi',  emb:'MM', cor:'#00B4AC', pinHash:'627b7b236d73b1d5905b69248729098342f9d720177290b33a8112108626469f', estrutura:{torres:['1','2','3'], aptosPorTorre:62, totalUnidades:186}},
+  'portal-primavera':    {short:'Portal Primavera',emb:'PP', cor:'#8DB72A', pinHash:'5a566101471bddb9c18e052aa5085ebb26ecb87228e27a713a1c7c51c7bd64f5', estrutura:{torres:['01','02','03','04','05','06','07','08','09','10','11','12','13','14','15'], aptosPorTorre:32, pavimentos:8, totalUnidades:480}},
+  'residencial-santa-clara':{short:'Santa Clara',  emb:'SC', cor:'#7D3C98', pinHash:'a17cb03a8625292eb40c780eded05672c46693af2cee4fc8221d69319dc5f2bb', estrutura:{torres:['1A','1B','2A','2B','3A','3B','4A','4B','5A','5B'], aptosPorTorre:16, pavimentos:4, totalUnidades:160}},
+  'jardins-do-malta':    {short:'Jardins do Malta',emb:'JM', cor:'#D4A24C', pinHash:'158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab', estrutura:{torres:['1','2','3','4','5'], aptosPorTorre:28, pavimentos:5, totalUnidades:140}},
+  'menotti-del-picchia': {short:'Menotti del Picchia', emb:'MP', cor:'#9C5B2E', pinHash:'158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab', estrutura:{torres:['1'], aptosPorTorre:12, pavimentos:6, totalUnidades:12}},   // ⚠ revisar estrutura
+  'montville-residence': {short:'MontVille',           emb:'MV', cor:'#1F5F8B', pinHash:'158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab', estrutura:{torres:['1','2'], aptosPorTorre:20, pavimentos:5, totalUnidades:40}}, // ⚠ revisar estrutura
+  'condominio-teste':    {short:'TESTE (sandbox)',     emb:'TT', cor:'#5A7A7E', pinHash:'158a323a7ba44870f23d96f1516dd70aa48e9a72db4ebb026b0a89e212a208ab', estrutura:{torres:['T'], aptosPorTorre:10, pavimentos:2, totalUnidades:10}},
+  'vilagio-vista-real':  {short:'Vilagio Vista Real',  emb:'VV', cor:'#1A7A6E', pinHash:'4ff006ca6b88e752f08cb7881714505ceb3d2079eea432acfda8e158e0d1d82e',  estrutura:{torres:['Q1','Q2','Q3','Q4'], aptosPorTorre:35, totalUnidades:140}},
 };
 
 let _condoSel = null;
@@ -327,7 +351,7 @@ function validar(){
   const em   = document.getElementById('li-email').value.trim();
   const pin  = document.getElementById('li-pin').value.trim();
   const okEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
-  const ok = _condoSel && nome.length>=5 && cpf.length===11 && okEmail && pin.length===4;
+  const ok = _condoSel && nome.length>=5 && cpf.length===11 && okEmail && pin.length>=4;
   document.getElementById('btn-entrar').disabled = !ok;
 }
 
@@ -366,7 +390,7 @@ async function entrar(){
     if(nome.length < 5){ err.textContent='Informe seu nome completo.'; err.classList.add('show'); return; }
     if(cpf.length !== 11){ err.textContent='CPF inválido (11 dígitos).'; err.classList.add('show'); return; }
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ err.textContent='E-mail inválido.'; err.classList.add('show'); return; }
-    if(pin !== condo.pin){ err.textContent='PIN incorreto. Solicite o PIN ao síndico(a).'; err.classList.add('show'); return; }
+    if(!(await validarPinPortaria(_condoSel, pin))){ err.textContent='PIN incorreto. Solicite o PIN ao síndico(a).'; err.classList.add('show'); return; }
   }
   _porteiro = nome;
   _porteiroCPF = cpf;
